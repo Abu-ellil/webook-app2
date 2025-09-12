@@ -1,8 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { useCurrency } from "@/app/components/CurrencyProvider";
-
-"use client";
 
 export default function Footer() {
   return (
@@ -194,7 +191,7 @@ export default function Footer() {
                   ></path>
                 </svg>
                 <div className="bg-slate-400 w-0.5 h-4"></div>
-                <span className="text-sm">{currency.code}</span>
+                
               </div>
             </div>
             <div className="flex flex-row-reverse gap-4">
