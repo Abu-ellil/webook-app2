@@ -30,6 +30,15 @@ const nextConfig = {
       allowedOrigins: ['localhost:3000', 'www.webokksa.com', 'webokksa.com'],
     },
   },
+  async redirects() {
+    return [
+      {
+        source: '/jobs',
+        destination: '/',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

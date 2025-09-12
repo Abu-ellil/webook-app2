@@ -7,7 +7,10 @@ export async function GET() {
             NODE_ENV: process.env.NODE_ENV,
             DATABASE_URL_EXISTS: !!process.env.DATABASE_URL,
             DATABASE_URL_STARTS_WITH: process.env.DATABASE_URL?.substring(0, 20),
-            PRISMA_CLIENT_EXISTS: !!prisma
+            DATABASE_URL_INCLUDES_SSL: process.env.DATABASE_URL?.includes('sslmode=require'),
+            DATABASE_URL_INCLUDES_PGBOUNCER: process.env.DATABASE_URL?.includes('pgbouncer=true'),
+            PRISMA_CLIENT_EXISTS: !!prisma,
+            NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL
         })
 
         if (!prisma) {
@@ -16,6 +19,14 @@ export async function GET() {
         }
 
         console.log('📡 Attempting to fetch events from database...')
+
+        // First, try to connect to the database
+        await prisma.$connect();
+        console.log('✅ Database connection successful');
+
+        // Count events first
+        const eventCount = await prisma.event.count();
+        console.log(`📊 Total events in database: ${eventCount}`);
 
         const events = await prisma.event.findMany({
             include: {

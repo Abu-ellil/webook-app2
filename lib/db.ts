@@ -4,6 +4,9 @@ const globalForPrisma = globalThis as unknown as {
     prisma: PrismaClient | undefined
 }
 
+// Helper function to wait
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 // Create Prisma client with minimal logging
 const createPrismaClient = () => {
     // Skip during build time
@@ -18,10 +21,23 @@ const createPrismaClient = () => {
     }
 
     try {
+        console.log('🔧 Initializing Prisma Client with configuration:', {
+            databaseUrlExists: !!process.env.DATABASE_URL,
+            databaseUrlStartsWith: process.env.DATABASE_URL?.substring(0, 20),
+            nodeEnv: process.env.NODE_ENV
+        });
+
         const client = new PrismaClient({
-            log: ['error'], // Only log errors to reduce noise
+            log: ['query', 'error', 'warn'],
             errorFormat: 'pretty',
-        })
+        });
+
+        // Attempt initial connection
+        client.$connect()
+            .then(() => console.log('✅ Database connection successful'))
+            .catch(err => console.error('❌ Database connection failed:', err));
+
+        return client;
 
         return client
 
