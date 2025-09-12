@@ -1,0 +1,23 @@
+# Environment variables for Prisma CLI and local development
+DATABASE_URL=postgresql://neondb_owner:npg_2DnTrUafHQS8@ep-rough-waterfall-adbgh89q-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&pgbouncer=true&connect_timeout=15
+
+
+
+JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
+
+# Cloudinary Configuration for Image Uploads
+CLOUDINARY_CLOUD_NAME="masoft"
+CLOUDINARY_API_KEY="657846754332939"
+CLOUDINARY_API_SECRET="Jsg7AiP68YfIr74PmFwIP7T5YF8"
+CLOUDINARY_URL="cloudinary://657846754332939:Jsg7AiP68YfIr74PmFwIP7T5YF8@masoft"
+
+# Telegram Bot Configuration (Optional)
+TELEGRAM_BOT_TOKEN="7837531839:AAF3V9VJXNhvxVtlKNYvcuZ2TtoUURWUZT4"
+TELEGRAM_CHAT_ID="-1002611850831"
+
+# Base URL for API calls
+# NEXT_PUBLIC_BASE_URL="http://localhost:3000"
+NEXT_PUBLIC_BASE_URL="https://webook-app.vercel.app"
+
+# Currency Configuration
+NEXT_PUBLIC_CURRENCY="SAR"
