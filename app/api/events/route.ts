@@ -3,6 +3,12 @@ import { prisma } from '@/lib/db'
 
 export async function GET() {
     try {
+        console.log('🔍 Events API: Environment check', {
+            NODE_ENV: process.env.NODE_ENV,
+            DATABASE_URL_EXISTS: !!process.env.DATABASE_URL,
+            DATABASE_URL_STARTS_WITH: process.env.DATABASE_URL?.substring(0, 20),
+            PRISMA_CLIENT_EXISTS: !!prisma
+        })
 
         if (!prisma) {
             console.error('❌ Events API: Prisma client not available')
@@ -32,9 +38,17 @@ export async function GET() {
         console.error('❌ Error details:', {
             message: error.message,
             code: error.code,
-            stack: error.stack
+            name: error.name,
+            stack: error.stack,
+            prismaError: error?.constructor?.name === 'PrismaClientKnownRequestError',
+            meta: error?.meta
         })
-        return NextResponse.json({ error: 'Failed to fetch events', details: error.message }, { status: 500 })
+        return NextResponse.json({ 
+            error: 'Failed to fetch events', 
+            details: error.message,
+            env: process.env.NODE_ENV,
+            timestamp: new Date().toISOString()
+        }, { status: 500 })
     }
 }
 

@@ -24,13 +24,11 @@ const nextConfig = {
       },
     ],
   },
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: '/api/:path*',
-      },
-    ];
+  // Ensure Edge Runtime is not used as it might cause issues with Prisma
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['localhost:3000', 'www.webokksa.com', 'webokksa.com'],
+    },
   },
 };
 
