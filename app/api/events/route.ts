@@ -61,15 +61,18 @@ export async function GET(request: NextRequest) {
                     // تعيين تاريخ افتراضي إذا كان التاريخ غير صالح
                     return {
                         ...event,
-                        date: new Date().toISOString()
+                        date: date
                     };
                 }
-                return event;
+                return {
+                    ...event,
+                    date: date
+                };
             } catch (error) {
                 console.error(`❌ خطأ في معالجة تاريخ الفعالية: ${event.title}`, error);
                 return {
                     ...event,
-                    date: new Date().toISOString()
+                    date: new Date()
                 };
             }
         })
