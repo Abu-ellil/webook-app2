@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -14,7 +15,7 @@ model Event {
   image       String?
   date        DateTime
   venue       String
-  category    String    @default("حفل موسيقي") // تصنيف الفعالية
+  category    String    @default("حفل موسيقي")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   bookings    Booking[]
@@ -28,10 +29,10 @@ model Seat {
   number   Int
   section  String
   price    Float
-  category String // VVIP, VIP, Royal, Diamond, Platinum, Gold, Silver, Bronze
+  category String
   isBooked Boolean  @default(false)
-  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   booking  Booking?
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }
 
 model Booking {
@@ -42,7 +43,7 @@ model Booking {
   customerPhone String
   customerEmail String?
   totalAmount   Float
-  status        String   @default("pending") // pending, confirmed, cancelled
+  status        String   @default("pending")
   paymentData   String?
   createdAt     DateTime @default(now())
   event         Event    @relation(fields: [eventId], references: [id])
@@ -61,4 +62,60 @@ model Settings {
   value     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model admin {
+  id       String @id
+  username String @unique
+  password String
+}
+
+model booking {
+  id            String    @id
+  eventid       String
+  seatid        String    @unique
+  customername  String
+  customerphone String
+  customeremail String?
+  totalamount   Float     @db.Real
+  status        String?   @default("pending")
+  paymentdata   String?
+  createdat     DateTime? @default(now()) @db.Timestamp(6)
+  event         event     @relation(fields: [eventid], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  seat          seat      @relation(fields: [seatid], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model event {
+  id          String    @id
+  title       String
+  description String
+  image       String?
+  date        DateTime  @db.Timestamp(6)
+  venue       String
+  category    String?   @default("حفل موسيقي")
+  createdat   DateTime? @default(now()) @db.Timestamp(6)
+  updatedat   DateTime? @default(now()) @db.Timestamp(6)
+  booking     booking[]
+  seat        seat[]
+}
+
+model seat {
+  id       String   @id
+  eventid  String
+  row      String
+  number   Int
+  section  String
+  price    Float    @db.Real
+  category String
+  isbooked Boolean? @default(false)
+  booking  booking?
+  event    event    @relation(fields: [eventid], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model settings {
+  id        String    @id
+  key       String    @unique
+  value     String
+  createdat DateTime? @default(now()) @db.Timestamp(6)
+  updatedat DateTime? @default(now()) @db.Timestamp(6)
 }
