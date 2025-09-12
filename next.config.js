@@ -14,6 +14,14 @@ const nextConfig = {
         protocol: "https",
         hostname: "weboukksa.live",
       },
+      {
+        protocol: "https",
+        hostname: "www.webokksa.com",
+      },
+      {
+        protocol: "https",
+        hostname: "webokksa.com",
+      },
     ],
   },
 };
