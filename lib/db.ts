@@ -6,47 +6,36 @@ const globalForPrisma = globalThis as unknown as {
 
 // Create Prisma client with minimal logging
 const createPrismaClient = () => {
+    // Skip during build time
+    if (process.env.NEXT_PHASE === 'phase-production-build') {
+        return null
+    }
+
     // Check DATABASE_URL
     if (!process.env.DATABASE_URL) {
         console.error('❌ DATABASE_URL not found')
-        throw new Error('DATABASE_URL environment variable is not set')
+        return null
     }
 
     try {
-        console.log('🔗 Creating new Prisma client...')
         const client = new PrismaClient({
             log: ['error'], // Only log errors to reduce noise
             errorFormat: 'pretty',
         })
 
-        // Test the connection
-        console.log('🧪 Testing database connection...')
-        client.$connect().then(() => {
-            console.log('✅ Database connection established')
-        }).catch((error) => {
-            console.error('❌ Database connection failed:', error)
-        })
-
         return client
+
     } catch (error) {
         console.error('❌ Failed to create PrismaClient:', error)
-        throw error
+        return null
     }
 }
 
 // Initialize Prisma client with singleton pattern
-let prismaInstance: PrismaClient | undefined
+const prismaInstance = globalForPrisma.prisma ?? createPrismaClient()
 
-try {
-    if (typeof window === 'undefined') { // Only run on server side
-        prismaInstance = globalForPrisma.prisma ?? createPrismaClient()
-        
-        if (process.env.NODE_ENV !== 'production' && prismaInstance) {
-            globalForPrisma.prisma = prismaInstance
-        }
-    }
-} catch (error) {
-    console.error('❌ Failed to initialize Prisma client:', error)
+if (process.env.NODE_ENV !== 'production' && prismaInstance) {
+    globalForPrisma.prisma = prismaInstance
 }
 
 export const prisma = prismaInstance

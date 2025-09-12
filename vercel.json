@@ -6,14 +6,12 @@
   },
   "env": {
     "PRISMA_CLI_QUERY_ENGINE_TYPE": "binary",
-    "PRISMA_CLIENT_ENGINE_TYPE": "binary",
-    "NODE_ENV": "production"
+    "PRISMA_CLIENT_ENGINE_TYPE": "binary"
   },
   "build": {
     "env": {
       "PRISMA_CLI_QUERY_ENGINE_TYPE": "binary",
-      "PRISMA_CLIENT_ENGINE_TYPE": "binary",
-      "NODE_ENV": "production"
+      "PRISMA_CLIENT_ENGINE_TYPE": "binary"
     }
   }
 }

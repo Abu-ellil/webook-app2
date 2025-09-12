@@ -1,45 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
     try {
-        console.log('🔍 Events API: Request received')
-        
-        // Check if Prisma client is available
+
         if (!prisma) {
             console.error('❌ Events API: Prisma client not available')
-            return NextResponse.json(
-                { 
-                    error: 'Database connection not available',
-                    message: 'Prisma client is not initialized' 
-                }, 
-                { status: 500 }
-            )
+            return NextResponse.json({ error: 'Database connection not available' }, { status: 500 })
         }
 
         console.log('📡 Attempting to fetch events from database...')
-        
-        // Check database connection first
-        try {
-            await prisma.$connect()
-            console.log('✅ Database connection successful')
-        } catch (connectError) {
-            console.error('❌ Database connection failed:', connectError)
-            return NextResponse.json(
-                { 
-                    error: 'Database connection failed',
-                    message: connectError.message 
-                }, 
-                { status: 500 }
-            )
-        }
 
-        let events = await prisma.event.findMany({
-            where: {
-                date: {
-                    not: null
-                }
-            },
+        const events = await prisma.event.findMany({
             include: {
                 seats: {
                     select: {
@@ -50,62 +22,19 @@ export async function GET(request: NextRequest) {
             },
             orderBy: { date: 'asc' }
         })
-        
-        // معالجة التواريح للتأكد من أنها صالحة
-        events = events.map(event => {
-            try {
-                // التأكد من أن التاريخ صالح
-                const date = new Date(event.date);
-                if (isNaN(date.getTime())) {
-                    console.warn(`⚠️ تاريخ غير صالح للفعالة: ${event.title} (${event.date})`);
-                    // تعيين تاريخ افتراضي إذا كان التاريخ غير صالح
-                    return {
-                        ...event,
-                        date: date
-                    };
-                }
-                return {
-                    ...event,
-                    date: date
-                };
-            } catch (error) {
-                console.error(`❌ خطأ في معالجة تاريخ الفعالية: ${event.title}`, error);
-                return {
-                    ...event,
-                    date: new Date()
-                };
-            }
-        })
 
         console.log('✅ Events API: Found', events.length, 'events')
-        if (events.length > 0) {
-            console.log('📋 Event titles:', events.map(e => e.title))
-        } else {
-            console.log('📋 No events found in database')
-        }
+        console.log('📋 Event titles:', events.map(e => e.title))
 
         return NextResponse.json(events)
     } catch (error) {
         console.error('❌ Events API Error:', error)
-        
-        // Extract more detailed error information
-        const errorDetails = {
-            message: error.message || 'Unknown error occurred',
-            code: error.code || 'UNKNOWN_ERROR',
-            stack: error.stack || undefined,
-            name: error.name || 'Error'
-        }
-        
-        console.error('❌ Error details:', errorDetails)
-        
-        return NextResponse.json(
-            { 
-                error: 'Failed to fetch events', 
-                details: errorDetails.message,
-                code: errorDetails.code
-            }, 
-            { status: 500 }
-        )
+        console.error('❌ Error details:', {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        })
+        return NextResponse.json({ error: 'Failed to fetch events', details: error.message }, { status: 500 })
     }
 }
 
@@ -117,7 +46,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { title, description, date, venue, category, image, ticketPrices } = body   
+        const { title, description, date, venue, category, image, ticketPrices } = body
 
         // إنشاء الحدث
         const event = await prisma.event.create({

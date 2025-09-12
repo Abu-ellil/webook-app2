@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sign } from 'jsonwebtoken'
 import { prisma } from '@/lib/db'
-import bcrypt from 'bcryptjs'
 
 export async function POST(request: NextRequest) {
     try {
@@ -53,8 +52,7 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const isPasswordValid = await bcrypt.compare(password, admin.password)
-        if (!isPasswordValid) {
+        if (admin.password !== password) {
             console.log('❌ Invalid password')
             return NextResponse.json(
                 { error: 'Invalid password' },
