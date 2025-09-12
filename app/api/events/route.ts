@@ -34,7 +34,12 @@ export async function GET(request: NextRequest) {
             )
         }
 
-        const events = await prisma.event.findMany({
+        let events = await prisma.event.findMany({
+            where: {
+                date: {
+                    not: null
+                }
+            },
             include: {
                 seats: {
                     select: {
@@ -44,6 +49,29 @@ export async function GET(request: NextRequest) {
                 }
             },
             orderBy: { date: 'asc' }
+        })
+        
+        // معالجة التواريح للتأكد من أنها صالحة
+        events = events.map(event => {
+            try {
+                // التأكد من أن التاريخ صالح
+                const date = new Date(event.date);
+                if (isNaN(date.getTime())) {
+                    console.warn(`⚠️ تاريخ غير صالح للفعالة: ${event.title} (${event.date})`);
+                    // تعيين تاريخ افتراضي إذا كان التاريخ غير صالح
+                    return {
+                        ...event,
+                        date: new Date().toISOString()
+                    };
+                }
+                return event;
+            } catch (error) {
+                console.error(`❌ خطأ في معالجة تاريخ الفعالية: ${event.title}`, error);
+                return {
+                    ...event,
+                    date: new Date().toISOString()
+                };
+            }
         })
 
         console.log('✅ Events API: Found', events.length, 'events')
