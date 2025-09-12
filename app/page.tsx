@@ -126,6 +126,20 @@ export default function HomePage() {
           />
           <MagnifyingGlassIcon className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-primary" />
         </div>
+        
+        {/* Debug Button - Only show in development */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-4 flex justify-center">
+            <button 
+              onClick={() => {
+                window.open('/api/diagnose', '_blank')
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"
+            >
+              تشخيص المشاكل
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Loading State */}

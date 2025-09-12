@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { Pool } = require("pg");
+const { createClient } = require("@libsql/client");
 
 async function initDatabase() {
   console.log(
@@ -7,30 +7,27 @@ async function initDatabase() {
     process.env.DATABASE_URL?.substring(0, 50) + "..."
   );
 
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-      rejectUnauthorized: false
-    }
+  const client = createClient({
+    url: process.env.DATABASE_URL,
   });
 
   try {
     // Create tables based on your Prisma schema
-    await pool.query(`
+    await client.execute(`
       CREATE TABLE IF NOT EXISTS Event (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
         description TEXT NOT NULL,
         image TEXT,
-        date TIMESTAMP NOT NULL,
+        date DATETIME NOT NULL,
         venue TEXT NOT NULL,
         category TEXT DEFAULT 'حفل موسيقي',
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
-    await pool.query(`
+    await client.execute(`
       CREATE TABLE IF NOT EXISTS Seat (
         id TEXT PRIMARY KEY,
         eventId TEXT NOT NULL,
@@ -44,7 +41,7 @@ async function initDatabase() {
       );
     `);
 
-    await pool.query(`
+    await client.execute(`
       CREATE TABLE IF NOT EXISTS Booking (
         id TEXT PRIMARY KEY,
         eventId TEXT NOT NULL,
@@ -55,13 +52,13 @@ async function initDatabase() {
         totalAmount REAL NOT NULL,
         status TEXT DEFAULT 'pending',
         paymentData TEXT,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (eventId) REFERENCES Event(id),
         FOREIGN KEY (seatId) REFERENCES Seat(id)
       );
     `);
 
-    await pool.query(`
+    await client.execute(`
       CREATE TABLE IF NOT EXISTS Admin (
         id TEXT PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
@@ -69,24 +66,24 @@ async function initDatabase() {
       );
     `);
 
-    await pool.query(`
+    await client.execute(`
       CREATE TABLE IF NOT EXISTS Settings (
         id TEXT PRIMARY KEY,
         key TEXT UNIQUE NOT NULL,
         value TEXT NOT NULL,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
     console.log("✅ Database tables created successfully!");
 
     // Check if we need to create an admin user
-    const adminCheck = await pool.query(
+    const adminCheck = await client.execute(
       "SELECT COUNT(*) as count FROM Admin"
     );
-    if (parseInt(adminCheck.rows[0].count) === 0) {
-      await pool.query(`
+    if (adminCheck.rows[0].count === 0) {
+      await client.execute(`
         INSERT INTO Admin (id, username, password) 
         VALUES ('admin-1', 'admin', 'admin123')
       `);
@@ -97,7 +94,7 @@ async function initDatabase() {
   } catch (error) {
     console.error("❌ Error initializing database:", error);
   } finally {
-    await pool.end();
+    client.close();
   }
 }
 

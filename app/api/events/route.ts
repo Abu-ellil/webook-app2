@@ -1,32 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
-        console.log('🔍 Events API: Environment check', {
-            NODE_ENV: process.env.NODE_ENV,
-            DATABASE_URL_EXISTS: !!process.env.DATABASE_URL,
-            DATABASE_URL_STARTS_WITH: process.env.DATABASE_URL?.substring(0, 20),
-            DATABASE_URL_INCLUDES_SSL: process.env.DATABASE_URL?.includes('sslmode=require'),
-            DATABASE_URL_INCLUDES_PGBOUNCER: process.env.DATABASE_URL?.includes('pgbouncer=true'),
-            PRISMA_CLIENT_EXISTS: !!prisma,
-            NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL
-        })
-
+        console.log('🔍 Events API: Request received')
+        
+        // Check if Prisma client is available
         if (!prisma) {
             console.error('❌ Events API: Prisma client not available')
-            return NextResponse.json({ error: 'Database connection not available' }, { status: 500 })
+            return NextResponse.json(
+                { 
+                    error: 'Database connection not available',
+                    message: 'Prisma client is not initialized' 
+                }, 
+                { status: 500 }
+            )
         }
 
         console.log('📡 Attempting to fetch events from database...')
-
-        // First, try to connect to the database
-        await prisma.$connect();
-        console.log('✅ Database connection successful');
-
-        // Count events first
-        const eventCount = await prisma.event.count();
-        console.log(`📊 Total events in database: ${eventCount}`);
+        
+        // Check database connection first
+        try {
+            await prisma.$connect()
+            console.log('✅ Database connection successful')
+        } catch (connectError) {
+            console.error('❌ Database connection failed:', connectError)
+            return NextResponse.json(
+                { 
+                    error: 'Database connection failed',
+                    message: connectError.message 
+                }, 
+                { status: 500 }
+            )
+        }
 
         const events = await prisma.event.findMany({
             include: {
@@ -41,25 +47,34 @@ export async function GET() {
         })
 
         console.log('✅ Events API: Found', events.length, 'events')
-        console.log('📋 Event titles:', events.map(e => e.title))
+        if (events.length > 0) {
+            console.log('📋 Event titles:', events.map(e => e.title))
+        } else {
+            console.log('📋 No events found in database')
+        }
 
         return NextResponse.json(events)
     } catch (error) {
         console.error('❌ Events API Error:', error)
-        console.error('❌ Error details:', {
-            message: error.message,
-            code: error.code,
-            name: error.name,
-            stack: error.stack,
-            prismaError: error?.constructor?.name === 'PrismaClientKnownRequestError',
-            meta: error?.meta
-        })
-        return NextResponse.json({ 
-            error: 'Failed to fetch events', 
-            details: error.message,
-            env: process.env.NODE_ENV,
-            timestamp: new Date().toISOString()
-        }, { status: 500 })
+        
+        // Extract more detailed error information
+        const errorDetails = {
+            message: error.message || 'Unknown error occurred',
+            code: error.code || 'UNKNOWN_ERROR',
+            stack: error.stack || undefined,
+            name: error.name || 'Error'
+        }
+        
+        console.error('❌ Error details:', errorDetails)
+        
+        return NextResponse.json(
+            { 
+                error: 'Failed to fetch events', 
+                details: errorDetails.message,
+                code: errorDetails.code
+            }, 
+            { status: 500 }
+        )
     }
 }
 
@@ -71,7 +86,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { title, description, date, venue, category, image, ticketPrices } = body
+        const { title, description, date, venue, category, image, ticketPrices } = body   
 
         // إنشاء الحدث
         const event = await prisma.event.create({

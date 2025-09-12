@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+
 export default function Footer() {
   return (
     <footer className="bg-black text-white py-12 mt-16">
@@ -191,7 +192,6 @@ export default function Footer() {
                   ></path>
                 </svg>
                 <div className="bg-slate-400 w-0.5 h-4"></div>
-                
               </div>
             </div>
             <div className="flex flex-row-reverse gap-4">
