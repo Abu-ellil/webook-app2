@@ -1,4 +1,6 @@
 import { getCollection } from '@/lib/db';
+import mongoDB from '@/app/lib/db-mongo';
+import { ObjectId } from 'mongodb';
 
 export interface CategoryPricing {
     category: string;
@@ -10,6 +12,16 @@ export interface CategoryPricing {
  */
 export async function getEventCategoryPrices(eventId: string): Promise<Record<string, number>> {
     try {
+        // First, try to get prices from the event document's ticketPrices field
+        const eventsCollection = await mongoDB.getCollection('Event');
+        const event = await eventsCollection.findOne({ _id: new ObjectId(eventId) });
+        
+        if (event && event.ticketPrices) {
+            // Return the ticket prices from the event document
+            return event.ticketPrices;
+        }
+        
+        // Fallback to getting prices from seats if event doesn't have ticketPrices
         const seatsCollection = await getCollection('Seat');
         
         // Find distinct categories and their prices for the event

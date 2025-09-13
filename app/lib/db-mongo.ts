@@ -1,5 +1,5 @@
 import { Db, Collection } from 'mongodb';
-import clientPromise from './mongodb';
+import getMongoClient from './mongodb';
 
 export class MongoDB {
   private db: Db | null = null;
@@ -7,6 +7,7 @@ export class MongoDB {
 
   private async connect(): Promise<Db> {
     if (!this.db) {
+      const clientPromise = getMongoClient();
       const client = await clientPromise;
       this.db = client.db(); // The database name is already in the connection string
     }
