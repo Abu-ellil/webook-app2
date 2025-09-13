@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeftIcon, CheckIcon } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import { useCurrency } from "../../components/CurrencyProvider";
+import { SUPPORTED_CURRENCIES, getCurrencyByCode } from "@/lib/currency";
 
 interface Settings {
   goldTicketPrice: string;
@@ -70,6 +71,19 @@ export default function AdminSettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Update currency if it has changed
+      if (settings.currency && settings.currency !== currency.code) {
+        const newCurrency = getCurrencyByCode(settings.currency);
+        await fetch("/api/settings/currency", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ value: settings.currency }),
+        });
+      }
+      
+      // Save other settings
       const response = await fetch("/api/settings", {
         method: "POST",
         headers: {
@@ -284,13 +298,21 @@ export default function AdminSettingsPage() {
 
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  العملة الحالية
+                  العملة
                 </label>
-                <div className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-gray-300">
-                  {currency.nameAr} ({currency.symbol})
-                </div>
+                <select
+                  value={settings.currency || currency.code}
+                  onChange={(e) => handleInputChange("currency", e.target.value)}
+                  className="w-full bg-dark border border-gray-600 rounded-lg px-3 py-2 text-white"
+                >
+                  {SUPPORTED_CURRENCIES.map((curr) => (
+                    <option key={curr.code} value={curr.code}>
+                      {curr.nameAr} ({curr.symbol})
+                    </option>
+                  ))}
+                </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  💡 لتغيير العملة، اذهب إلى الصفحة الرئيسية للإدارة
+                  💡 سيتم تحديث العملة في جميع أنحاء الموقع
                 </p>
               </div>
             </div>
