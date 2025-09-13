@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { formatCurrency } from '@/lib/currency'
-import { prisma } from '@/lib/db'
+import { getCollection } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
     try {
@@ -17,10 +17,9 @@ console.log(bookingData)
         }
 
         // Get current currency setting
-        const currencySetting = await prisma.settings.findUnique({
-            where: { key: 'currency' }
-        })
-        const currencyCode = currencySetting?.value || 'SAR'
+        const settingsCollection = await getCollection('Settings');
+        const currencySetting = await settingsCollection.findOne({ key: 'currency' });
+        const currencyCode = currencySetting?.value || 'SAR';
 
         // Format message for Telegram based on type
         let message = ''

@@ -1,201 +1,198 @@
-import { prisma } from './db';
+import mongoDB from './db-mongo';
+import { ObjectId } from 'mongodb';
 
-export interface SeatData {
+export interface Seat {
+  id?: string;
   eventId: string;
+  section: string;
   row: string;
   number: number;
-  section: string;
-  price: number;
   category: string;
+  price: number;
+  isBooked: boolean;
+  x: number;
+  y: number;
 }
 
-export async function createSeat(seatData: SeatData) {
+/**
+ * Create a new seat
+ */
+export async function createSeat(seatData: Omit<Seat, 'id'>): Promise<Seat | null> {
   try {
-    const seat = await prisma.seat.create({
-      data: seatData
-    });
-
-    return seat;
+    const seatsCollection = await mongoDB.getCollection('Seat');
+    const result = await seatsCollection.insertOne(seatData);
+    
+    return {
+      ...seatData,
+      id: result.insertedId.toString()
+    };
   } catch (error) {
     console.error('Error creating seat:', error);
-    throw error;
+    return null;
   }
 }
 
-export async function getSeatsByEvent(eventId: string, filters?: {
-  section?: string;
-  category?: string;
-  isBooked?: boolean;
-}) {
+/**
+ * Get all seats for an event
+ */
+export async function getSeatsForEvent(eventId: string): Promise<Seat[]> {
   try {
-    const query: any = {
-      where: { eventId }
-    };
-
-    // Apply filters if provided
-    if (filters) {
-      if (filters.section) {
-        query.where.section = filters.section;
-      }
-
-      if (filters.category) {
-        query.where.category = filters.category;
-      }
-
-      if (filters.isBooked !== undefined) {
-        query.where.isBooked = filters.isBooked;
-      }
-    }
-
-    const seats = await prisma.seat.findMany({
-      where: query.where,
-      orderBy: [
-        { section: 'asc' },
-        { row: 'asc' },
-        { number: 'asc' }
-      ]
+    const seatsCollection = await mongoDB.getCollection('Seat');
+    const seats = await seatsCollection.find({ eventId }).toArray();
+    
+    return seats.map(seat => {
+      const { _id, ...rest } = seat;
+      return {
+        ...rest,
+        id: _id.toString()
+      } as Seat;
     });
-
-    return seats;
   } catch (error) {
     console.error(`Error fetching seats for event ${eventId}:`, error);
-    throw error;
+    return [];
   }
 }
 
-export async function getSeatById(id: string) {
+/**
+ * Get a specific seat by ID
+ */
+export async function getSeatById(id: string): Promise<Seat | null> {
   try {
-    const seat = await prisma.seat.findUnique({
-      where: { id },
-      include: {
-        event: true,
-        booking: true
-      }
-    });
-
-    return seat;
+    if (!ObjectId.isValid(id)) {
+      throw new Error('Invalid seat ID format');
+    }
+    
+    const seatsCollection = await mongoDB.getCollection('Seat');
+    const seat = await seatsCollection.findOne({ _id: new ObjectId(id) });
+    
+    if (!seat) return null;
+    const { _id, ...rest } = seat;
+    return {
+      ...rest,
+      id: _id.toString()
+    } as Seat;
   } catch (error) {
     console.error(`Error fetching seat with ID ${id}:`, error);
-    throw error;
+    return null;
   }
 }
 
-export async function updateSeat(id: string, seatData: {
-  row?: string;
-  number?: number;
-  section?: string;
-  price?: number;
-  category?: string;
-  isBooked?: boolean;
-}) {
+/**
+ * Update a seat
+ */
+export async function updateSeat(id: string, seatData: Partial<Seat>): Promise<Seat | null> {
   try {
-    const seat = await prisma.seat.update({
-      where: { id },
-      data: seatData
-    });
-
-    return seat;
+    if (!ObjectId.isValid(id)) {
+      throw new Error('Invalid seat ID format');
+    }
+    
+    const seatsCollection = await mongoDB.getCollection('Seat');
+    const result = await seatsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: seatData }
+    );
+    
+    if (result.matchedCount === 0) {
+      return null;
+    }
+    
+    // Fetch the updated seat
+    const updatedSeat = await seatsCollection.findOne({ _id: new ObjectId(id) });
+    if (!updatedSeat) return null;
+    const { _id, ...rest } = updatedSeat;
+    return {
+      ...rest,
+      id: _id.toString()
+    } as Seat;
   } catch (error) {
     console.error(`Error updating seat with ID ${id}:`, error);
-    throw error;
+    return null;
   }
 }
 
-export async function deleteSeat(id: string) {
+/**
+ * Delete a seat
+ */
+export async function deleteSeat(id: string): Promise<boolean> {
   try {
-    await prisma.seat.delete({
-      where: { id }
-    });
+    if (!ObjectId.isValid(id)) {
+      throw new Error('Invalid seat ID format');
+    }
+    
+    const seatsCollection = await mongoDB.getCollection('Seat');
+    const result = await seatsCollection.deleteOne({ _id: new ObjectId(id) });
+    
+    return result.deletedCount > 0;
   } catch (error) {
     console.error(`Error deleting seat with ID ${id}:`, error);
-    throw error;
+    return false;
   }
 }
 
-export async function getSeatAvailability(eventId: string) {
+/**
+ * Get available seats count for an event
+ */
+export async function getAvailableSeatsCount(eventId: string): Promise<number> {
   try {
-    const [totalSeats, bookedSeats] = await Promise.all([
-      prisma.seat.count({
-        where: { eventId }
-      }),
-      prisma.seat.count({
-        where: { 
-          eventId,
-          isBooked: true 
-        }
-      })
-    ]);
-
-    const availableSeats = totalSeats - bookedSeats;
-    const availabilityPercentage = totalSeats > 0 ? (availableSeats / totalSeats) * 100 : 0;
-
-    return {
-      totalSeats,
-      bookedSeats,
-      availableSeats,
-      availabilityPercentage
-    };
+    const seatsCollection = await mongoDB.getCollection('Seat');
+    return await seatsCollection.countDocuments({ eventId, isBooked: false });
   } catch (error) {
-    console.error(`Error getting seat availability for event ${eventId}:`, error);
-    throw error;
+    console.error(`Error counting available seats for event ${eventId}:`, error);
+    return 0;
   }
 }
 
-export async function getSeatMap(eventId: string) {
+/**
+ * Get booked seats count for an event
+ */
+export async function getBookedSeatsCount(eventId: string): Promise<number> {
   try {
-    const seats = await prisma.seat.findMany({
-      where: { eventId },
-      orderBy: [
-        { section: 'asc' },
-        { row: 'asc' },
-        { number: 'asc' }
-      ]
+    const seatsCollection = await mongoDB.getCollection('Seat');
+    return await seatsCollection.countDocuments({ eventId, isBooked: true });
+  } catch (error) {
+    console.error(`Error counting booked seats for event ${eventId}:`, error);
+    return 0;
+  }
+}
+
+/**
+ * Get seats by category for an event
+ */
+export async function getSeatsByCategory(eventId: string, category: string): Promise<Seat[]> {
+  try {
+    const seatsCollection = await mongoDB.getCollection('Seat');
+    const seats = await seatsCollection.find({ eventId, category }).toArray();
+    
+    return seats.map(seat => {
+      const { _id, ...rest } = seat;
+      return {
+        ...rest,
+        id: _id.toString()
+      } as Seat;
     });
-
-    // Group seats by section
-    const seatMap: { [section: string]: { [row: string]: any[] } } = {};
-
-    for (const seat of seats) {
-      if (!seatMap[seat.section]) {
-        seatMap[seat.section] = {};
-      }
-
-      if (!seatMap[seat.section][seat.row]) {
-        seatMap[seat.section][seat.row] = [];
-      }
-
-      seatMap[seat.section][seat.row].push({
-        number: seat.number,
-        price: seat.price,
-        category: seat.category,
-        isBooked: seat.isBooked
-      });
-    }
-
-    return seatMap;
   } catch (error) {
-    console.error(`Error getting seat map for event ${eventId}:`, error);
-    throw error;
+    console.error(`Error fetching seats for event ${eventId} and category ${category}:`, error);
+    return [];
   }
 }
 
-export async function bulkUpdateSeats(seatIds: string[], updates: {
-  price?: number;
-  category?: string;
-}) {
+/**
+ * Update multiple seats
+ */
+export async function updateSeats(
+  filter: { eventId: string; category?: string },
+  updateData: Partial<Seat>
+): Promise<number> {
   try {
-    const updatedSeats = await prisma.seat.updateMany({
-      where: {
-        id: {
-          in: seatIds
-        }
-      },
-      data: updates
-    });
-
-    return updatedSeats;
+    const seatsCollection = await mongoDB.getCollection('Seat');
+    const result = await seatsCollection.updateMany(
+      filter,
+      { $set: updateData }
+    );
+    
+    return result.modifiedCount;
   } catch (error) {
-    console.error('Error bulk updating seats:', error);
-    throw error;
+    console.error('Error updating seats:', error);
+    return 0;
   }
 }

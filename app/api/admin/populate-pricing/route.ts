@@ -1,37 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { populateAllEventsPricing, populateEventPricing } from '@/lib/populate-pricing';
+import { populateAllEventPricing, populateEventPricing } from '@/lib/populate-pricing';
 
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { eventId, categoryPrices } = body;
 
-        if (eventId && categoryPrices) {
+        if (eventId) {
             // Populate pricing for a specific event
-            const success = await populateEventPricing(eventId, categoryPrices);
+            const result = await populateEventPricing(eventId);
 
-            if (success) {
+            if (result.success) {
                 return NextResponse.json({
                     success: true,
-                    message: 'Event pricing populated successfully'
+                    message: result.message
                 });
             } else {
                 return NextResponse.json({
-                    error: 'Failed to populate event pricing'
+                    error: result.error || 'Failed to populate event pricing'
                 }, { status: 500 });
             }
         } else {
             // Populate pricing for all events
-            const success = await populateAllEventsPricing();
+            const result = await populateAllEventPricing();
 
-            if (success) {
+            if (result.success) {
                 return NextResponse.json({
                     success: true,
-                    message: 'All events pricing populated successfully'
+                    message: result.message
                 });
             } else {
                 return NextResponse.json({
-                    error: 'Failed to populate pricing for all events'
+                    error: result.error || 'Failed to populate pricing for all events'
                 }, { status: 500 });
             }
         }

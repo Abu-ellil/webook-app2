@@ -1,98 +1,85 @@
-import { prisma } from './db';
+import mongoDB from './db-mongo';
 
-// Cache for settings to avoid repeated database calls
-const settingsCache: { [key: string]: string } = {};
+export interface Setting {
+  key: string;
+  value: string;
+}
 
-// Function to get a setting value
-export async function getSetting(key: string): Promise<string> {
-  // First check the cache
-  if (settingsCache[key]) {
-    return settingsCache[key];
-  }
-
+/**
+ * Get a setting value by key
+ */
+export async function getSetting(key: string): Promise<string | null> {
   try {
-    // If not in cache, fetch from database
-    const setting = await prisma.settings.findUnique({
-      where: { key }
-    });
-
-    if (setting) {
-      // Cache the value
-      settingsCache[key] = setting.value;
-      return setting.value;
-    }
-
-    // Return default value if not found
-    return '';
+    const settingsCollection = await mongoDB.getCollection('Settings');
+    const setting = await settingsCollection.findOne({ key });
+    
+    return setting ? setting.value : null;
   } catch (error) {
-    console.error(`Error getting setting ${key}:`, error);
-    return '';
+    console.error(`Error fetching setting with key ${key}:`, error);
+    return null;
   }
 }
 
-// Function to set a setting value
-export async function setSetting(key: string, value: string): Promise<void> {
+/**
+ * Set a setting value by key
+ */
+export async function setSetting(key: string, value: string): Promise<boolean> {
   try {
-    // Update or create the setting
-    await prisma.settings.upsert({
-      where: { key },
-      update: { value },
-      create: { key, value }
-    });
-
-    // Update the cache
-    settingsCache[key] = value;
+    const settingsCollection = await mongoDB.getCollection('Settings');
+    
+    await settingsCollection.updateOne(
+      { key },
+      { $set: { key, value } },
+      { upsert: true }
+    );
+    
+    return true;
   } catch (error) {
-    console.error(`Error setting setting ${key}:`, error);
-    throw error;
+    console.error(`Error setting value for key ${key}:`, error);
+    return false;
   }
 }
 
-// Function to get multiple settings at once
-export async function getSettings(keys: string[]): Promise<{ [key: string]: string }> {
-  const result: { [key: string]: string } = {};
-
-  // First check the cache for any available settings
-  const keysToFetch: string[] = [];
-
-  for (const key of keys) {
-    if (settingsCache[key]) {
-      result[key] = settingsCache[key];
-    } else {
-      keysToFetch.push(key);
-    }
+/**
+ * Get all settings
+ */
+export async function getAllSettings(): Promise<Record<string, string>> {
+  try {
+    const settingsCollection = await mongoDB.getCollection('Settings');
+    const settings = await settingsCollection.find({}).toArray();
+    
+    // Convert array to object
+    const settingsObject: Record<string, string> = {};
+    settings.forEach(setting => {
+      settingsObject[setting.key] = setting.value;
+    });
+    
+    return settingsObject;
+  } catch (error) {
+    console.error('Error fetching all settings:', error);
+    return {};
   }
-
-  // Fetch settings not in cache
-  if (keysToFetch.length > 0) {
-    try {
-      const settings = await prisma.settings.findMany({
-        where: { key: { in: keysToFetch } }
-      });
-
-      for (const setting of settings) {
-        result[setting.key] = setting.value;
-        settingsCache[setting.key] = setting.value;
-      }
-
-      // Set empty values for keys not found
-      for (const key of keysToFetch) {
-        if (!result[key]) {
-          result[key] = '';
-          settingsCache[key] = '';
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching settings:', error);
-    }
-  }
-
-  return result;
 }
 
-// Function to clear the cache
-export function clearSettingsCache(): void {
-  Object.keys(settingsCache).forEach(key => {
-    delete settingsCache[key];
-  });
+/**
+ * Initialize default settings if they don't exist
+ */
+export async function initializeDefaultSettings() {
+  try {
+    const defaultSettings: Record<string, string> = {
+      'currency': 'SAR',
+      'bronzeTicketPrice': '250',
+      'telegramBotEnabled': 'false'
+    };
+    
+    for (const [key, value] of Object.entries(defaultSettings)) {
+      const existingValue = await getSetting(key);
+      if (existingValue === null) {
+        await setSetting(key, value);
+        console.log(`Initialized default setting: ${key} = ${value}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error initializing default settings:', error);
+  }
 }

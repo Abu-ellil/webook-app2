@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { getDatabase, getCollection } from '@/lib/db'
+import { MongoClient } from 'mongodb'
 
 export async function GET() {
   const diagnosis = {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV as "development" | "production" | "test",
-    hasDatabaseUrl: !!process.env.DATABASE_URL,
-    prismaStatus: prisma ? 'initialized' : 'not initialized',
-    databaseConnection: 'unknown' as 'unknown' | 'connected' | 'failed',
+    hasDatabaseUrl: !!process.env.MONGODB_URI,
+    databaseStatus: 'unknown' as 'unknown' | 'connected' | 'failed',
     environmentVariables: {} as Record<string, string>,
     databaseError: undefined as string | undefined,
     eventCount: undefined as number | string | undefined,
@@ -18,10 +18,8 @@ export async function GET() {
   try {
     // Check environment variables
     const envVars = [
-      'DATABASE_URL',
-      'NEXT_PUBLIC_BASE_URL',
-      'PRISMA_CLIENT_ENGINE_TYPE',
-      'PRISMA_CLI_QUERY_ENGINE_TYPE'
+      'MONGODB_URI',
+      'NEXT_PUBLIC_BASE_URL'
     ]
 
     envVars.forEach(varName => {
@@ -29,20 +27,23 @@ export async function GET() {
     })
 
     // Test database connection
-    if (prisma) {
+    if (process.env.MONGODB_URI) {
       try {
-        await prisma.$connect()
-        diagnosis.databaseConnection = 'connected'
+        const client = new MongoClient(process.env.MONGODB_URI);
+        await client.connect();
+        diagnosis.databaseStatus = 'connected'
+        await client.close();
       } catch (error) {
-        diagnosis.databaseConnection = 'failed'
+        diagnosis.databaseStatus = 'failed'
         diagnosis.databaseError = error.message
       }
     }
 
     // Try to run a simple query
-    if (prisma && diagnosis.databaseConnection === 'connected') {
+    if (diagnosis.databaseStatus === 'connected') {
       try {
-        const eventCount = await prisma.event.count()
+        const eventsCollection = await getCollection('Event');
+        const eventCount = await eventsCollection.countDocuments();
         diagnosis.eventCount = eventCount
       } catch (error) {
         diagnosis.eventCount = 'error'

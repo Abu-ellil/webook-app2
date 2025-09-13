@@ -1,186 +1,238 @@
-import { prisma } from './db';
+import mongoDB from './db-mongo';
 import { getSetting } from './settings';
+import { ObjectId } from 'mongodb';
 
 export interface BookingData {
   eventId: string;
-  seatId: string;
   customerName: string;
+  customerEmail: string;
   customerPhone: string;
-  customerEmail?: string;
+  seatIds: string[];
   totalAmount: number;
-  status?: 'pending' | 'confirmed' | 'cancelled';
-  paymentData?: string;
+  paymentStatus: 'pending' | 'completed' | 'failed';
+  bookingDate?: Date;
 }
 
-export async function createBooking(bookingData: BookingData) {
+export interface Booking {
+  id?: string;
+  eventId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  seatIds: string[];
+  totalAmount: number;
+  paymentStatus: 'pending' | 'completed' | 'failed';
+  bookingDate: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Create a new booking
+ */
+export async function createBooking(bookingData: BookingData): Promise<Booking | null> {
   try {
-    // Start a transaction to ensure data consistency
-    const booking = await prisma.$transaction(async (tx) => {
-      // Check if the seat is available
-      const seat = await tx.seat.findUnique({
-        where: { id: bookingData.seatId }
-      });
-
-      if (!seat || seat.isBooked) {
-        throw new Error('المقعد غير متاح أو محجوز مسبقاً');
-      }
-
-      // Check if the seat belongs to the correct event
-      if (seat.eventId !== bookingData.eventId) {
-        throw new Error('المقعد لا ينتمي لهذه الفعالية');
-      }
-
-      // Mark the seat as booked
-      await tx.seat.update({
-        where: { id: bookingData.seatId },
-        data: { isBooked: true }
-      });
-
-      // Create the booking
-      const newBooking = await tx.booking.create({
-        data: {
-          ...bookingData,
-          status: bookingData.status || 'pending'
-        }
-      });
-
-      return newBooking;
-    });
-
-    return booking;
+    const bookingsCollection = await mongoDB.getCollection('Booking');
+    const seatsCollection = await mongoDB.getCollection('Seat');
+    
+    // Create the booking document
+    const bookingDoc = {
+      ...bookingData,
+      bookingDate: bookingData.bookingDate || new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    // Insert the booking
+    const result = await bookingsCollection.insertOne(bookingDoc);
+    
+    // Update seat statuses to booked
+    await seatsCollection.updateMany(
+      { _id: { $in: bookingData.seatIds.map(id => new ObjectId(id)) } },
+      { $set: { isBooked: true } }
+    );
+    
+    return {
+      ...bookingDoc,
+      id: result.insertedId.toString()
+    } as Booking;
   } catch (error) {
     console.error('Error creating booking:', error);
-    throw error;
+    return null;
   }
 }
 
-export async function getBookingById(id: string) {
+/**
+ * Get a booking by ID
+ */
+export async function getBookingById(id: string): Promise<Booking | null> {
   try {
-    const booking = await prisma.booking.findUnique({
-      where: { id },
-      include: {
-        event: true,
-        seat: true
-      }
-    });
-
-    return booking;
+    if (!ObjectId.isValid(id)) {
+      throw new Error('Invalid booking ID format');
+    }
+    
+    const bookingsCollection = await mongoDB.getCollection('Booking');
+    const booking = await bookingsCollection.findOne({ _id: new ObjectId(id) });
+    
+    if (!booking) return null;
+    
+    const { _id, ...rest } = booking;
+    return {
+      ...rest,
+      id: _id.toString(),
+      bookingDate: new Date(rest.bookingDate),
+      createdAt: new Date(rest.createdAt),
+      updatedAt: new Date(rest.updatedAt)
+    } as Booking;
   } catch (error) {
     console.error(`Error fetching booking with ID ${id}:`, error);
-    throw error;
+    return null;
   }
 }
 
-export async function getBookingsByCustomer(phone: string, email?: string) {
+/**
+ * Get bookings with optional filters
+ */
+export async function getBookings(filters: {
+  eventId?: string;
+  customerEmail?: string;
+  paymentStatus?: 'pending' | 'completed' | 'failed';
+} = {}): Promise<Booking[]> {
   try {
-    const whereClause: any = {
-      customerPhone: phone
-    };
-
-    if (email) {
-      whereClause.OR = [
-        { customerPhone: phone },
-        { customerEmail: email }
-      ];
+    const bookingsCollection = await mongoDB.getCollection('Booking');
+    
+    // Build query
+    const query: any = {};
+    
+    if (filters.eventId) {
+      query.eventId = filters.eventId;
     }
-
-    const bookings = await prisma.booking.findMany({
-      where: whereClause,
-      include: {
-        event: true,
-        seat: true
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
+    
+    if (filters.customerEmail) {
+      query.customerEmail = filters.customerEmail;
+    }
+    
+    if (filters.paymentStatus) {
+      query.paymentStatus = filters.paymentStatus;
+    }
+    
+    const bookings = await bookingsCollection.find(query).sort({ createdAt: -1 }).toArray();
+    
+    return bookings.map(booking => {
+      const { _id, ...rest } = booking;
+      return {
+        ...rest,
+        id: _id.toString(),
+        bookingDate: new Date(rest.bookingDate),
+        createdAt: new Date(rest.createdAt),
+        updatedAt: new Date(rest.updatedAt)
+      } as Booking;
     });
-
-    return bookings;
   } catch (error) {
-    console.error(`Error fetching bookings for customer with phone ${phone}:`, error);
-    throw error;
+    console.error('Error fetching bookings:', error);
+    return [];
   }
 }
 
-export async function getBookingsByEvent(eventId: string) {
+/**
+ * Get bookings for a specific event
+ */
+export async function getBookingsForEvent(eventId: string): Promise<Booking[]> {
   try {
-    const bookings = await prisma.booking.findMany({
-      where: { eventId },
-      include: {
-        seat: true
-      },
-      orderBy: {
-        createdAt: 'desc'
+    return await getBookings({ eventId });
+  } catch (error) {
+    console.error(`Error fetching bookings for event ${eventId}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Update a booking
+ */
+export async function updateBooking(
+  id: string,
+  updateData: Partial<Booking>
+): Promise<Booking | null> {
+  try {
+    if (!ObjectId.isValid(id)) {
+      throw new Error('Invalid booking ID format');
+    }
+    
+    const bookingsCollection = await mongoDB.getCollection('Booking');
+    const result = await bookingsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { 
+        $set: { 
+          ...updateData,
+          updatedAt: new Date()
+        }
       }
-    });
-
-    return bookings;
+    );
+    
+    if (result.matchedCount === 0) {
+      return null;
+    }
+    
+    // Fetch the updated booking
+    const updatedBooking = await bookingsCollection.findOne({ _id: new ObjectId(id) });
+    if (!updatedBooking) return null;
+    
+    const { _id, ...rest } = updatedBooking;
+    return {
+      ...rest,
+      id: _id.toString(),
+      bookingDate: new Date(rest.bookingDate),
+      createdAt: new Date(rest.createdAt),
+      updatedAt: new Date(rest.updatedAt)
+    } as Booking;
   } catch (error) {
-    console.error(`Error fetching bookings for event with ID ${eventId}:`, error);
-    throw error;
+    console.error(`Error updating booking with ID ${id}:`, error);
+    return null;
   }
 }
 
-export async function updateBookingStatus(id: string, status: 'pending' | 'confirmed' | 'cancelled') {
+/**
+ * Cancel a booking
+ */
+export async function cancelBooking(id: string): Promise<boolean> {
   try {
-    const booking = await prisma.booking.update({
-      where: { id },
-      data: { status },
-      include: {
-        event: true,
-        seat: true
+    if (!ObjectId.isValid(id)) {
+      throw new Error('Invalid booking ID format');
+    }
+    
+    const bookingsCollection = await mongoDB.getCollection('Booking');
+    const seatsCollection = await mongoDB.getCollection('Seat');
+    
+    // Get the booking to retrieve seat IDs
+    const booking = await getBookingById(id);
+    if (!booking) {
+      return false;
+    }
+    
+    // Update the booking status
+    const result = await bookingsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { 
+        $set: { 
+          paymentStatus: 'failed',
+          updatedAt: new Date()
+        }
       }
-    });
-
-    // If the booking is cancelled, mark the seat as available again
-    if (status === 'cancelled') {
-      await prisma.seat.update({
-        where: { id: booking.seatId },
-        data: { isBooked: false }
-      });
+    );
+    
+    if (result.matchedCount === 0) {
+      return false;
     }
-
-    return booking;
+    
+    // Update seat statuses back to available
+    await seatsCollection.updateMany(
+      { _id: { $in: booking.seatIds.map(id => new ObjectId(id)) } },
+      { $set: { isBooked: false } }
+    );
+    
+    return true;
   } catch (error) {
-    console.error(`Error updating booking status with ID ${id}:`, error);
-    throw error;
-  }
-}
-
-export async function confirmBooking(id: string) {
-  try {
-    const booking = await updateBookingStatus(id, 'confirmed');
-
-    // Send confirmation notification via Telegram if enabled
-    const telegramEnabled = await getSetting('telegram_notifications');
-    if (telegramEnabled === 'true') {
-      // This would typically call the Telegram API
-      // For now, we'll just log it
-      console.log(`Sending confirmation notification for booking ${id}`);
-    }
-
-    return booking;
-  } catch (error) {
-    console.error(`Error confirming booking with ID ${id}:`, error);
-    throw error;
-  }
-}
-
-export async function cancelBooking(id: string) {
-  try {
-    const booking = await updateBookingStatus(id, 'cancelled');
-
-    // Send cancellation notification via Telegram if enabled
-    const telegramEnabled = await getSetting('telegram_notifications');
-    if (telegramEnabled === 'true') {
-      // This would typically call the Telegram API
-      // For now, we'll just log it
-      console.log(`Sending cancellation notification for booking ${id}`);
-    }
-
-    return booking;
-  } catch (error) {
-    console.error(`Error cancelling booking with ID ${id}:`, error);
-    throw error;
+    console.error(`Error canceling booking with ID ${id}:`, error);
+    return false;
   }
 }

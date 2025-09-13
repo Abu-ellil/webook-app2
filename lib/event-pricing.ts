@@ -1,4 +1,4 @@
-import { prisma } from './db';
+import { getCollection } from '@/lib/db';
 
 export interface CategoryPricing {
     category: string;
@@ -10,21 +10,21 @@ export interface CategoryPricing {
  */
 export async function getEventCategoryPrices(eventId: string): Promise<Record<string, number>> {
     try {
-        if (!prisma) {
-            throw new Error('Database not available');
-        }
-
-        const seats = await prisma.seat.findMany({
-            where: { eventId },
-            select: { category: true, price: true },
-            distinct: ['category'],
-            orderBy: { price: 'desc' }
-        });
-
-        // Convert array to object with category as key and price as value
+        const seatsCollection = await getCollection('Seat');
+        
+        // Find distinct categories and their prices for the event
+        const seats = await seatsCollection.find({ eventId }).toArray();
+        
+        // Get unique categories with their prices
         const categoryPrices: Record<string, number> = {};
-        seats.forEach(seat => {
-            categoryPrices[seat.category] = seat.price;
+        const categories = Array.from(new Set(seats.map(seat => seat.category)));
+        
+        categories.forEach(category => {
+            const categorySeats = seats.filter(seat => seat.category === category);
+            if (categorySeats.length > 0) {
+                // Use the price of the first seat in this category as the category price
+                categoryPrices[category] = categorySeats[0].price;
+            }
         });
 
         return categoryPrices;
@@ -70,19 +70,14 @@ export async function updateEventCategoryPrices(
     categoryPrices: Record<string, number>
 ): Promise<boolean> {
     try {
-        if (!prisma) {
-            throw new Error('Database not available');
-        }
-
+        const seatsCollection = await getCollection('Seat');
+        
         // Update all seats of each category with new prices
         for (const [category, price] of Object.entries(categoryPrices)) {
-            await prisma.seat.updateMany({
-                where: {
-                    eventId,
-                    category
-                },
-                data: { price }
-            });
+            await seatsCollection.updateMany(
+                { eventId, category },
+                { $set: { price } }
+            );
         }
 
         return true;

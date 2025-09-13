@@ -1,4 +1,4 @@
-import { getSetting } from './settings';
+import { getSetting, setSetting } from './settings';
 
 // Application configuration
 export interface AppConfig {
@@ -155,13 +155,14 @@ export function generateBookingReference(): string {
 }
 
 // Helper function to check if booking time is valid
-export function isBookingValid(eventDate: Date): boolean {
+export async function isBookingValid(eventDate: Date): Promise<boolean> {
   const now = new Date();
   const minHours = 24; // Default minimum hours before event
 
   // Try to get the minimum booking time from settings
   try {
-    const minBookingTimeHours = parseInt(getSetting('min_booking_time')) || minHours;
+    const minBookingTimeString = await getSetting('min_booking_time');
+    const minBookingTimeHours = parseInt(minBookingTimeString) || minHours;
     const eventTime = new Date(eventDate).getTime();
     const nowTime = now.getTime();
     const timeDiff = eventTime - nowTime;
