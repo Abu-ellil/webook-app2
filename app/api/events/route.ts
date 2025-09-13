@@ -3,7 +3,7 @@ import mongoDB from '@/app/lib/db-mongo';
 
 export async function GET() {
   try {
-    const eventsCollection = await mongoDB.getCollection('events');
+    const eventsCollection = await mongoDB.getCollection('Event');
     const events = await eventsCollection.find({}).toArray();
     return NextResponse.json(events);
   } catch (error) {

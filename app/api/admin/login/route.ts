@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
         const { username, password } = await request.json()
         console.log('👤 Login attempt for username:', username, 'and password:', password)
 
-        const adminCollection = await mongoDB.getCollection('admins');
+        const adminCollection = await mongoDB.getCollection('Admin');
 
         // Count total admins first
         const adminCount = await adminCollection.countDocuments();

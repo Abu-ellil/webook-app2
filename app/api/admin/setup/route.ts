@@ -1,18 +1,15 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import mongoDB from '@/app/lib/db-mongo';
 
 export async function POST() {
     try {
         console.log('🔧 Setting up admin user...')
-        console.log('🔗 DATABASE_URL:', process.env.DATABASE_URL)
+        console.log('🔗 MONGODB_URI:', process.env.MONGODB_URI)
 
-        if (!prisma) {
-            console.error('❌ Prisma client not available')
-            return NextResponse.json({ error: 'Database connection not available' }, { status: 500 })
-        }
+        const adminCollection = await mongoDB.getCollection('Admin');
 
         // Check if admin already exists
-        const existingAdmin = await prisma.admin.findFirst()
+        const existingAdmin = await adminCollection.findOne({});
 
         if (existingAdmin) {
             console.log('✅ Admin user already exists')
@@ -23,18 +20,19 @@ export async function POST() {
         }
 
         // Create default admin user
-        const admin = await prisma.admin.create({
-            data: {
-                username: 'admin',
-                password: 'admin123' // في الإنتاج، استخدم كلمة مرور مشفرة
-            }
-        })
+        const admin = {
+            username: 'admin',
+            password: 'admin123' // في الإنتاج، استخدم كلمة مرور مشفرة
+        };
+        
+        const result = await adminCollection.insertOne(admin);
+        const createdAdmin = { ...admin, id: result.insertedId };
 
         console.log('✅ Admin user created successfully')
 
         return NextResponse.json({
             message: 'Admin user created successfully',
-            username: admin.username,
+            username: createdAdmin.username,
             note: 'Default password is: admin123'
         })
 
