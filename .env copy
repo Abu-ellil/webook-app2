@@ -1,5 +1,6 @@
 # Environment variables for Prisma CLI and local development
-DATABASE_URL=postgresql://neondb_owner:npg_2DnTrUafHQS8@ep-rough-waterfall-adbgh89q-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&pgbouncer=true&connect_timeout=15
+DATABASE_URL="mongodb+srv://mrabuellil_db_user:mrabuellil_db_user@cluster0.vkbecxj.mongodb.net/webook?retryWrites=true&w=majority"
+
 
 
 

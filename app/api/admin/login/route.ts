@@ -1,32 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sign } from 'jsonwebtoken'
-import { prisma } from '@/lib/db'
+import mongoDB from '@/app/lib/db-mongo';
 
 export async function POST(request: NextRequest) {
     try {
         console.log('🔐 Admin login attempt')
-        console.log('🔗 DATABASE_URL:', process.env.DATABASE_URL)
-        console.log('📊 Environment:', {
-            DATABASE_URL_EXISTS: !!process.env.DATABASE_URL,
-            DATABASE_URL_VALID: process.env.DATABASE_URL?.startsWith('postgresql://'),
-            JWT_SECRET_EXISTS: !!process.env.JWT_SECRET,
-            PRISMA_AVAILABLE: !!prisma
-        })
-
-        // Check if prisma client is available
-        if (!prisma) {
-            console.error('❌ Prisma client not available')
-            return NextResponse.json(
-                { error: 'Database connection not available' },
-                { status: 500 }
-            )
-        }
-
         const { username, password } = await request.json()
-        console.log('👤 Login attempt for username:', username)
+        console.log('👤 Login attempt for username:', username, 'and password:', password)
+
+        const adminCollection = await mongoDB.getCollection('admins');
 
         // Count total admins first
-        const adminCount = await prisma.admin.count()
+        const adminCount = await adminCollection.countDocuments();
         console.log('📊 Total admin users in database:', adminCount)
 
         if (adminCount === 0) {
@@ -38,9 +23,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Find admin user
-        const admin = await prisma.admin.findUnique({
-            where: { username }
-        })
+        const admin = await adminCollection.findOne({ username });
 
         console.log('🔍 Admin found:', !!admin)
 
